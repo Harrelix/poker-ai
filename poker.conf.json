@@ -1,0 +1,7 @@
+{
+    "player_name": ["Player 1", "Player 2"],
+    "starting_chip": [500, 500],
+
+    "small_blind_amount": 10,
+    "big_blind_amount": 20
+}

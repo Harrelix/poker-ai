@@ -7,8 +7,6 @@ use itertools::Itertools;
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
 
-use self::handtype::get_all_hand_types;
-
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
 enum Suit {
     Spade,
@@ -64,7 +62,7 @@ impl Hand {
     fn iter(&self) -> impl Iterator<Item = &Card> {
         self._data.iter()
     }
-    fn check(self, hand_type: impl HandType) -> bool {
+    fn check(self, hand_type: HandType) -> bool {
         hand_type.check(self)
     }
     fn get_ranks_array(self) -> [u8; 5] {
@@ -75,14 +73,13 @@ impl Hand {
             .try_into()
             .unwrap()
     }
-    fn get_hand_type(self) -> &impl HandType {
-        // for hand_type in get_all_hand_types() {
-        //     if hand_type.check(self) {
-        //         return *hand_type;
-        //     }
-        // }
-        // HandType::HighCard
-        todo!()
+    fn get_hand_type(self) -> HandType {
+        for hand_type in HandType::ALL_HAND_TYPES {
+            if hand_type.check(self) {
+                return hand_type;
+            }
+        }
+        HandType::HighCard
     }
     pub fn get_all_hands(cards: [Card; 7]) -> Vec<Hand> {
         cards

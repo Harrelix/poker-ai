@@ -1,11 +1,11 @@
 import * as React from 'react';
 
 export interface ICardProps {
-  value: number;
+  rank: number;
   suit: String;
 }
 
-export const NULL_CARD: ICardProps = { value: -1, suit: "" };
+export const NULL_CARD: ICardProps = { rank: -1, suit: "" };
 
 export default function Card(props: ICardProps) {
   let img: string;
@@ -23,7 +23,7 @@ export default function Card(props: ICardProps) {
   }
   return (
     <div className='card' style={{ color: color }}>
-      <div className='cardValue'>{props.value}</div>
+      <div className='cardRank'>{props.rank}</div>
       <img src={img} className='cardSuit' />
     </div>
   );

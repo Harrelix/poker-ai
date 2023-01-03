@@ -25,12 +25,24 @@ div.cardList {
 
 div.community {
   flex-grow: 1;
-  justify-content: flex-start;
-  font-size: 3em;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
 
+  font-size: 3em;
   width: 100vw;
   max-width: calc(0.2em * 6 + var(--card-width) * 5);
-  max-height: calc(0.2em * 2 + var(--card-width) * 1.4);
+  max-height: calc(0.2em * 3 + var(--card-width) * 1.4 + 1em);
+}
+
+div.community>span {
+  font-family: 'Lato', sans-serif;
+  text-align: center;
+}
+
+div.community>div.cardList {
+  justify-content: flex-start;
+  height: calc(0.2em * 2 + var(--card-width) * 1.4);
 }
 
 div.card {
@@ -48,7 +60,7 @@ div.card {
   user-select: none;
 }
 
-div.cardValue {
+div.cardRank {
   font-family: Copperplate, Cambria, "Times New Roman", serif;
   position: absolute;
   top: var(--card-padding);
@@ -85,10 +97,10 @@ div.player {
   align-items: center;
 
   max-height: calc(0.2em * 2 + var(--card-width) * 1.4);
-  width: 90vw;
+  width: 100vw;
   max-width: 15em;
   /* min-width: calc(3em + 0.2em * 4 + var(--card-width) * 2); */
-  min-width: fit-content;
+  /* min-width: fit-content; */
 
   font-size: 3em;
   border: 2px solid gray;
@@ -102,10 +114,6 @@ div.playerInfo {
   flex-direction: column;
   /* align-items: center; */
 
-  /* font-family: 'Lato', 'Roboto', 'Arial', sans-serif;
-   */
-
-
   font-family: 'Lato', sans-serif;
 
   max-width: 7em;
@@ -115,25 +123,25 @@ div.playerInfo {
 div.actions {
   display: flex;
   align-items: center;
-  gap: 1em;
+  justify-content: space-between;
 
+  width: 100vw;
+  max-width: 28em;
   max-height: 5em;
 
   font-size: 2em;
 }
 
 button.green {
-  --green-color: mediumseagreen;
-  border-color: var(--green-color);
-  box-shadow: 1px 1px 0 var(--green-color),
-    2px 2px 0 var(--green-color),
-    3px 3px 0 var(--green-color),
-    4px 4px 0 var(--green-color);
+  border-color: mediumseagreen;
+  box-shadow: 1px 1px 0 mediumseagreen,
+    2px 2px 0 mediumseagreen,
+    3px 3px 0 mediumseagreen,
+    4px 4px 0 mediumseagreen;
 }
 
 button.green:hover {
   background-color: #1e5a39;
-  /* color: black; */
   border-color: #9ed9b8;
   box-shadow: 1px 1px 0 #9ed9b8,
     2px 2px 0 #9ed9b8,
@@ -142,12 +150,11 @@ button.green:hover {
 }
 
 button.red {
-  --red-color: crimson;
-  border-color: var(--red-color);
-  box-shadow: 1px 1px 0 var(--red-color),
-    2px 2px 0 var(--red-color),
-    3px 3px 0 var(--red-color),
-    4px 4px 0 var(--red-color);
+  border-color: crimson;
+  box-shadow: 1px 1px 0 crimson,
+    2px 2px 0 crimson,
+    3px 3px 0 crimson,
+    4px 4px 0 crimson;
 }
 
 button.red:hover {
@@ -157,4 +164,52 @@ button.red:hover {
     2px 2px 0 #ee8a9e,
     3px 3px 0 #ee8a9e,
     4px 4px 0 #ee8a9e;
+}
+
+button.white {
+  border-color: lightgray;
+  box-shadow: 1px 1px 0 lightgray,
+    2px 2px 0 lightgray,
+    3px 3px 0 lightgray,
+    4px 4px 0 lightgray;
+}
+
+button.white:hover {
+  background-color: darkgray;
+  border-color: white;
+  box-shadow: 1px 1px 0 white,
+    2px 2px 0 white,
+    3px 3px 0 white,
+    4px 4px 0 white;
+}
+
+div.raiseActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  width: 100vw;
+  max-width: 28em;
+  max-height: 5em;
+
+  font-size: 2em;
+}
+
+div.slider_container {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  max-width: 14em;
+
+}
+
+div.slider_container>span {
+  font-family: Lato, sans-serif;
+  width: fit-content;
+}
+
+div.slider_container>input[type=range] {
+  width: 100%;
 }

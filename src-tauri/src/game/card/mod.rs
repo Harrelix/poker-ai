@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, ops::Index};
+use std::{cmp::Ordering, collections::LinkedList, ops::Index};
 
 use itertools::Itertools;
 use rand::seq::SliceRandom;
@@ -100,18 +100,20 @@ impl Ord for Hand {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Deck {
-    cards: Vec<u8>, // u8 represent card's index in a sorted deck
+    cards: LinkedList<u8>, // u8 represent card's index in a sorted deck
 }
 impl Deck {
     pub fn new() -> Deck {
         // create a new shuffled deck
         let mut cards: Vec<u8> = (0..52).collect();
         cards.shuffle(&mut rand::thread_rng());
-        Deck { cards }
+        Deck {
+            cards: cards.into_iter().collect(),
+        }
     }
     pub fn random_card(&mut self) -> Card {
         // get the top card of the shuffled deck
-        let index = self.cards.pop().expect("Deck is empty!");
+        let index = self.cards.pop_front().expect("Deck is empty!");
 
         // calculate rank and suit based on index
         Card {

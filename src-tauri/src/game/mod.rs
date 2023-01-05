@@ -2,9 +2,9 @@ mod card;
 
 use std::{cmp::min, ops::RangeInclusive};
 
+use self::card::{Card, Deck, Hand};
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-
-use self::card::{Card, Deck};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GameCfg {
@@ -187,6 +187,88 @@ impl Game {
                 self.community.push(self.deck.random_card());
             }
         };
+        fn get_next_game(game: &Game) -> Game {
+            // rotates button
+            let dealer_index = (game.dealer_index + 1) % Game::NUM_PLAYER;
+            let small_blind_index = Game::get_small_blind_index(dealer_index);
+            let mut players = game.players.clone();
+            // assumes players' bet and stack are already updated
+            // assign blinds
+            Game::assign_blinds(
+                &mut players,
+                small_blind_index,
+                game.cfg.small_blind_amount,
+                (small_blind_index + 1) % Game::NUM_PLAYER,
+                game.cfg.big_blind_amount,
+            )
+            .unwrap(); // panics if players don't have enough stack
+
+            Game {
+                cfg: game.cfg.clone(),
+                deck: Deck::new(),
+                players: game.players.clone(),
+                community: Vec::new(),
+                dealer_index,
+                small_blind_index,
+                betting_round: BettingRound::PreFlop,
+                pot_size: 0,
+                min_raise: game.cfg.big_blind_amount,
+                current_player_index: Game::get_first_player_index(true, dealer_index),
+                previous_active_index: None,
+            }
+        }
+        fn showdown(game: &mut Game) {
+            // showdown
+            // convert to array, double check to see if community is full
+            let community_array: [Card; 5] = game
+                .community
+                .clone()
+                .try_into()
+                .unwrap_or_else(|v: Vec<Card>| panic!("Community not full ({}/5)", v.len()));
+            // find best hand of all players
+            let winning_hands: Vec<Hand> = game
+                .players
+                .iter()
+                .map(|player| {
+                    Hand::get_all_hands(player.hole, community_array)
+                        .into_iter()
+                        .max()
+                        .unwrap()
+                })
+                .collect();
+            // get all the winners
+            let first_hand = winning_hands[0];
+            let winning_players_indices = winning_hands
+                .into_iter()
+                .enumerate()
+                .fold(
+                    (first_hand, Vec::new()),
+                    |(max_hand, mut indices), (index, hand)| {
+                        if hand > max_hand {
+                            return (hand, vec![index]);
+                        }
+                        if hand == max_hand {
+                            indices.push(index);
+                        }
+                        return (max_hand, indices);
+                    },
+                )
+                .1;
+            // split the pot evenly between the winners
+            // TODO: decides who gets the leftover chip
+            for index in winning_players_indices.iter() {
+                game.players[*index].stack += game.pot_size / winning_players_indices.len();
+            }
+            println!(
+                "Winner: {}",
+                winning_players_indices
+                    .iter()
+                    .map(|e| e.to_string())
+                    .join(", ")
+            );
+            // go to next game
+            *game = get_next_game(game);
+        }
 
         // reset min_raise
         self.min_raise = self.cfg.big_blind_amount;
@@ -204,7 +286,7 @@ impl Game {
             BettingRound::PreFlop => deal_cards_to_community(3),
             BettingRound::Flop => deal_cards_to_community(1),
             BettingRound::Turn => deal_cards_to_community(1),
-            BettingRound::River => todo!(),
+            BettingRound::River => showdown(self),
         }
         self.betting_round.next();
     }

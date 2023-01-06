@@ -187,7 +187,7 @@ impl Game {
                 self.community.push(self.deck.random_card());
             }
         };
-        fn get_next_game(game: &Game) -> Game {
+        fn go_to_next_game(game: &mut Game) {
             // rotates button
             let dealer_index = (game.dealer_index + 1) % Game::NUM_PLAYER;
             let small_blind_index = Game::get_small_blind_index(dealer_index);
@@ -203,7 +203,7 @@ impl Game {
             )
             .unwrap(); // panics if players don't have enough stack
 
-            Game {
+            *game = Game {
                 cfg: game.cfg.clone(),
                 deck: Deck::new(),
                 players: game.players.clone(),
@@ -215,7 +215,7 @@ impl Game {
                 min_raise: game.cfg.big_blind_amount,
                 current_player_index: Game::get_first_player_index(true, dealer_index),
                 previous_active_index: None,
-            }
+            };
         }
         fn showdown(game: &mut Game) {
             // showdown
@@ -266,8 +266,6 @@ impl Game {
                     .map(|e| e.to_string())
                     .join(", ")
             );
-            // go to next game
-            *game = get_next_game(game);
         }
 
         // reset min_raise
@@ -286,7 +284,12 @@ impl Game {
             BettingRound::PreFlop => deal_cards_to_community(3),
             BettingRound::Flop => deal_cards_to_community(1),
             BettingRound::Turn => deal_cards_to_community(1),
-            BettingRound::River => showdown(self),
+            BettingRound::River => {
+                showdown(self);
+                // go to next game
+                go_to_next_game(self);
+                return; // skip the self.betting_round.next()
+            }
         }
         self.betting_round.next();
     }

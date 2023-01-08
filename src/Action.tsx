@@ -14,9 +14,10 @@ interface Bet {
 export interface IActionProps {
   possible_actions: (string | Raise)[]
   on_call: () => void
-  on_check: () => void
   on_bet: (amount: number) => void
   on_raise: (amount: number) => void
+  on_check: () => void
+  on_fold: () => void
   raise_or_bet_range: NumRange
   call_amount: number
 }
@@ -186,7 +187,13 @@ export default function Action(props: IActionProps) {
       >
         Check
       </button>
-      <button className='red' disabled={disable_fold}>Fold</button>
+      <button
+        className='red'
+        disabled={disable_fold}
+        onClick={props.on_fold}
+      >
+        Fold
+      </button>
     </div >
   );
 }

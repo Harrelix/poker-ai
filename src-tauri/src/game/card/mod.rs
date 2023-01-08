@@ -25,6 +25,7 @@ pub struct Card {
     suit: Suit,
 }
 impl PartialEq for Card {
+    /// two cards are equal if they have the same rank
     fn eq(&self, other: &Self) -> bool {
         self.rank == other.rank
     }
@@ -35,9 +36,9 @@ impl PartialOrd for Card {
     }
 }
 impl Ord for Card {
-    /// Compare cards
-    /// The suit does not matter, eg. two of spade == two of clubs
-    /// Assumes ace are higher than two
+    /// compare cards
+    /// the suit does not matter, eg. two of spade == two of clubs
+    /// aces are higher than two
     fn cmp(&self, other: &Self) -> Ordering {
         if self.rank == 1 || self.rank > other.rank {
             return Ordering::Greater;

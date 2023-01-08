@@ -62,9 +62,10 @@ export default class App extends React.Component<IAppProps, IAppState> {
         <Action
           possible_actions={this.state.possible_actions}
           on_call={() => this.on_call()}
-          on_check={() => this.on_check()}
           on_bet={(amount) => this.on_bet(amount)}
           on_raise={(amount) => this.on_raise(amount)}
+          on_check= {() => this.on_check()}
+          on_fold={() => this.on_fold()}
           call_amount={this.state.call_amount}
           raise_or_bet_range={this.state.raise_or_bet_range}
         />
@@ -94,19 +95,24 @@ export default class App extends React.Component<IAppProps, IAppState> {
       this.updateGame(game as Game)
     )
   }
-  on_check() {
-    invoke("act", { game: this.state.game, action: "Check" }).then((game) =>
-      this.updateGame(game as Game)
-    )
-  }
   on_bet(amount: number) {
     invoke("act", { game: this.state.game, action: { Bet: amount } }).then((game) =>
-      this.updateGame(game as Game)
+    this.updateGame(game as Game)
     )
   }
   on_raise(amount: number) {
     invoke("act", { game: this.state.game, action: { Raise: amount } }).then((game) => {
       this.updateGame(game as Game)
     })
+  }
+  on_check() {
+    invoke("act", { game: this.state.game, action: "Check" }).then((game) =>
+      this.updateGame(game as Game)
+    )
+  }
+  on_fold() {
+    invoke("act", { game: this.state.game, action: "Fold" }).then((game) =>
+      this.updateGame(game as Game)
+    )
   }
 }

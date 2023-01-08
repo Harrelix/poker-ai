@@ -15,12 +15,13 @@ pub struct GameCfg {
     first_dealer_index: usize,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 struct Player {
     name: String,
     hole: [Card; 2],
     stack: usize,
     bet_size: usize,
+    folded: bool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -136,6 +137,7 @@ impl Game {
                 hole: [deck.random_card(), deck.random_card()],
                 stack: cfg.starting_chip[i],
                 bet_size: 0,
+                folded: false,
             });
         }
         // assign blinds
@@ -177,8 +179,57 @@ impl Game {
     }
 
     /// increment current_player_index
+    /// skipping folded players
     fn next_player(&mut self) {
-        self.current_player_index = (self.current_player_index + 1) % Game::NUM_PLAYER;
+        loop {
+            self.current_player_index = (self.current_player_index + 1) % Game::NUM_PLAYER;
+
+            if !self.players[self.current_player_index].folded {
+                break;
+            }
+        }
+    }
+
+    /// set self to a next game
+    /// assumes bet_size is already reset
+    fn go_to_next_game(&mut self, winners_indices: Vec<usize>) {
+        // split the pot evenly between the winners
+        for index in winners_indices.iter() {
+            self.players[*index].stack += self.pot_size / winners_indices.len();
+        }
+        // TODO: decides who gets the leftover chip
+        // rotates button
+        let dealer_index = (self.dealer_index + 1) % Game::NUM_PLAYER;
+        let small_blind_index = Game::get_small_blind_index(dealer_index);
+        let mut players = self.players.clone();
+        // assign blinds
+        Game::assign_blinds(
+            &mut players,
+            small_blind_index,
+            self.cfg.small_blind_amount,
+            (small_blind_index + 1) % Game::NUM_PLAYER,
+            self.cfg.big_blind_amount,
+        )
+        .unwrap(); // panics if players don't have enough stack
+
+        // reset folded
+        for mut player in players.iter_mut() {
+            player.folded = false;
+        }
+        // assign self to new game
+        *self = Game {
+            cfg: self.cfg.clone(),
+            deck: Deck::new(),
+            players,
+            community: Vec::new(),
+            dealer_index,
+            small_blind_index,
+            betting_round: BettingRound::PreFlop,
+            pot_size: 0,
+            min_raise: self.cfg.big_blind_amount,
+            current_player_index: Game::get_first_player_index(true, dealer_index),
+            previous_active_index: None,
+        };
     }
 
     pub fn next_betting_round(&mut self) {
@@ -187,37 +238,9 @@ impl Game {
                 self.community.push(self.deck.random_card());
             }
         };
-        fn go_to_next_game(game: &mut Game) {
-            // rotates button
-            let dealer_index = (game.dealer_index + 1) % Game::NUM_PLAYER;
-            let small_blind_index = Game::get_small_blind_index(dealer_index);
-            let mut players = game.players.clone();
-            // assumes players' bet and stack are already updated
-            // assign blinds
-            Game::assign_blinds(
-                &mut players,
-                small_blind_index,
-                game.cfg.small_blind_amount,
-                (small_blind_index + 1) % Game::NUM_PLAYER,
-                game.cfg.big_blind_amount,
-            )
-            .unwrap(); // panics if players don't have enough stack
 
-            *game = Game {
-                cfg: game.cfg.clone(),
-                deck: Deck::new(),
-                players: game.players.clone(),
-                community: Vec::new(),
-                dealer_index,
-                small_blind_index,
-                betting_round: BettingRound::PreFlop,
-                pot_size: 0,
-                min_raise: game.cfg.big_blind_amount,
-                current_player_index: Game::get_first_player_index(true, dealer_index),
-                previous_active_index: None,
-            };
-        }
-        fn showdown(game: &mut Game) {
+        // return the winning player indices after comparing hands
+        fn showdown(game: &Game) -> Vec<usize> {
             // showdown
             // convert to array, double check to see if community is full
             let community_array: [Card; 5] = game
@@ -254,11 +277,6 @@ impl Game {
                     },
                 )
                 .1;
-            // split the pot evenly between the winners
-            // TODO: decides who gets the leftover chip
-            for index in winning_players_indices.iter() {
-                game.players[*index].stack += game.pot_size / winning_players_indices.len();
-            }
             println!(
                 "Winner: {}",
                 winning_players_indices
@@ -266,6 +284,7 @@ impl Game {
                     .map(|e| e.to_string())
                     .join(", ")
             );
+            winning_players_indices
         }
 
         // reset min_raise
@@ -276,8 +295,7 @@ impl Game {
             player.bet_size = 0;
         }
         // starting player
-        // small blind play first after pre-flop
-        self.current_player_index = self.small_blind_index;
+        self.current_player_index = Game::get_first_player_index(false, self.dealer_index);
         self.previous_active_index = None;
         // deal community cards and set to next betting round
         match self.betting_round {
@@ -285,9 +303,9 @@ impl Game {
             BettingRound::Flop => deal_cards_to_community(1),
             BettingRound::Turn => deal_cards_to_community(1),
             BettingRound::River => {
-                showdown(self);
+                let winners_indices = showdown(self);
                 // go to next game
-                go_to_next_game(self);
+                self.go_to_next_game(winners_indices);
                 return; // skip the self.betting_round.next()
             }
         }
@@ -348,9 +366,6 @@ impl Game {
     /// get amount of chips that we call
     /// returns None if we can't call
     pub fn get_call_amount(&self) -> Option<usize> {
-        let current_player = &self.players[self.current_player_index];
-        let previous_bet = self.get_previous_bet();
-        let amount = min(current_player.stack, previous_bet - current_player.bet_size);
         // check if can't call
         if self
             .get_possible_actions()
@@ -359,16 +374,15 @@ impl Game {
         {
             return None;
         }
+        let current_player = &self.players[self.current_player_index];
+        let previous_bet = self.get_previous_bet();
+        let amount = min(current_player.stack, previous_bet - current_player.bet_size);
         Some(amount)
     }
 
     /// get amount of chips range that we raise by or bet
     /// returns None if we can't raise or bet
     pub fn get_raise_or_bet_range(&self) -> Option<RangeInclusive<usize>> {
-        let current_player = &self.players[self.current_player_index];
-        let previous_bet = self.get_previous_bet();
-        let max_amount = current_player.bet_size + current_player.stack - previous_bet;
-        let range = min(max_amount, self.min_raise)..=max_amount;
         // check if can't raise or bet
         if !self
             .get_possible_actions()
@@ -377,17 +391,19 @@ impl Game {
         {
             return None;
         }
+        let current_player = &self.players[self.current_player_index];
+        let previous_bet = self.get_previous_bet();
+        let max_amount = current_player.bet_size + current_player.stack - previous_bet;
+        let range = min(max_amount, self.min_raise)..=max_amount;
         Some(range)
     }
 
     pub fn act(&self, action: Action) -> Result<Game, String> {
-        let call = move || -> Result<Game, String> {
-            // create new game
-            let mut new_game = self.clone();
-            let current_player = &mut new_game.players[self.current_player_index];
-            match self.get_call_amount() {
-                // update stack and bet size if we can cal
+        fn call(new_game: &mut Game) -> Result<(), String> {
+            match new_game.get_call_amount() {
+                // update stack and bet size if we can call
                 Some(amount) => {
+                    let current_player = &mut new_game.players[new_game.current_player_index];
                     current_player.stack -= amount;
                     current_player.bet_size += amount;
                 }
@@ -406,13 +422,11 @@ impl Game {
                 // if first to call on pre-flop, set previous_active_index
                 new_game.previous_active_index = Some(new_game.get_previous_player_index());
             }
-            Ok(new_game)
-        };
+            Ok(())
+        }
 
-        let bet_or_raise = move |bet: bool, amount: usize| -> Result<Game, String> {
-            // create new game
-            let mut new_game = self.clone();
-            if let Some(raise_range) = self.get_raise_or_bet_range() {
+        fn bet_or_raise(new_game: &mut Game, bet: bool, amount: usize) -> Result<(), String> {
+            if let Some(raise_range) = new_game.get_raise_or_bet_range() {
                 // checks if amount ir legal
                 if !raise_range.contains(&amount) {
                     // return illegal amount error
@@ -431,7 +445,7 @@ impl Game {
                 };
             }
             let previous_bet = new_game.get_previous_bet();
-            let current_player = &mut new_game.players[self.current_player_index];
+            let current_player = &mut new_game.players[new_game.current_player_index];
 
             // update stack, bet size, and min_raise
             current_player.stack -= previous_bet + amount - current_player.bet_size;
@@ -442,33 +456,62 @@ impl Game {
             new_game.previous_active_index = Some(new_game.current_player_index);
             new_game.next_player();
 
-            Ok(new_game)
-        };
+            Ok(())
+        }
 
-        let check = move || -> Result<Game, String> {
-            // create new game
-            let mut new_game = self.clone();
+        fn check(new_game: &mut Game) -> Result<(), String> {
             new_game.next_player();
 
+            // check if the next player is the last one who bet
             if let Some(previous_active_index) = new_game.previous_active_index {
                 if previous_active_index == new_game.current_player_index {
                     // if the next index is the last to bet/raise, end round
                     new_game.next_betting_round();
                 }
             } else {
+                // if previous_active_index is None
                 // set most recent active player index to last player
                 new_game.previous_active_index = Some(new_game.get_previous_player_index());
             }
-            Ok(new_game)
-        };
+            Ok(())
+        }
+        fn fold(new_game: &mut Game) -> Result<(), String> {
+            let current_player = &mut new_game.players[new_game.current_player_index];
+            current_player.folded = true;
+            println!("{:?}", new_game.players);
 
+            // check if only one person remaining
+            let remaining_players_indices: Vec<usize> = new_game
+                .players
+                .iter()
+                .enumerate()
+                .filter(|(_index, player)| !player.folded) // if player not folded
+                .map(|(index, _player)| index) // add their index to vec
+                .collect();
+            if remaining_players_indices.len() == 1 {
+                for player in new_game.players.iter_mut() {
+                    new_game.pot_size += player.bet_size;
+                    player.bet_size = 0;
+                }
+                // go to next game
+                new_game.go_to_next_game(remaining_players_indices);
+                return Ok(());
+            }
+            check(new_game)
+        }
+        // create new game
+        let mut new_game = self.clone();
         // execute depends on action
-        match action {
-            Action::Call => call(),
-            Action::Bet(amount) => bet_or_raise(true, amount),
-            Action::Raise(amount) => bet_or_raise(false, amount),
-            Action::Check => check(),
-            Action::Fold => todo!(),
+        let result = match action {
+            Action::Call => call(&mut new_game),
+            Action::Bet(amount) => bet_or_raise(&mut new_game, true, amount),
+            Action::Raise(amount) => bet_or_raise(&mut new_game, false, amount),
+            Action::Check => check(&mut new_game),
+            Action::Fold => fold(&mut new_game),
+        };
+        match result {
+            Ok(_) => Ok(new_game),
+            Err(e) => Err(e),
         }
     }
 }

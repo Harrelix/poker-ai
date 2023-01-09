@@ -24,6 +24,14 @@ pub struct Card {
     rank: u8, // J, Q, K, A are 11, 12, 13, 1 respectively
     suit: Suit,
 }
+impl Card {
+    fn new(rank: u8, suit: Suit) -> Card {
+        if rank == 0 || rank > 13 {
+            panic!("Rank {} not valid. Should be between 1 and 13", rank);
+        }
+        Card { rank, suit }
+    }
+}
 impl PartialEq for Card {
     /// two cards are equal if they have the same rank
     fn eq(&self, other: &Self) -> bool {
@@ -42,6 +50,9 @@ impl Ord for Card {
     fn cmp(&self, other: &Self) -> Ordering {
         if self.rank == 1 {
             return Ordering::Greater;
+        }
+        if other.rank == 1 {
+            return Ordering::Less;
         }
         self.rank.cmp(&other.rank)
     }
@@ -166,9 +177,56 @@ impl Deck {
         let index = self.cards.pop_front().expect("Deck is empty!");
 
         // calculate rank and suit based on index
-        Card {
-            rank: index / 4 + 1,
-            suit: Suit::ALL_SUITS[index as usize % 4],
+        Card::new(index / 4 + 1, Suit::ALL_SUITS[index as usize % 4])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rand;
+    use rand::seq::SliceRandom;
+
+    fn create_hand(ranks: [u8; 5], suits: [Suit; 5]) -> Hand {
+        Hand::new(
+            ranks
+                .iter()
+                .zip(suits.iter())
+                .map(|(&rank, &suit)| Card::new(rank, suit))
+                .collect::<Vec<Card>>()
+                .try_into()
+                .unwrap(),
+        )
+    }
+    fn random_suits_no_flush() -> [Suit; 5] {
+        let mut rng = rand::thread_rng();
+        loop {
+            let mut suits = Vec::new();
+            for _ in 0..5 {
+                suits.push(*Suit::ALL_SUITS.choose(&mut rng).unwrap());
+            }
+            if suits.iter().any(|&suit| suit != suits[0]) {
+                return suits.try_into().unwrap();
+            }
         }
+    }
+
+    #[test]
+    fn hand_compare_tests() {
+        let highcard1 = create_hand([3, 5, 2, 6, 9], random_suits_no_flush());
+        let highcard2 = create_hand([1, 2, 3, 7, 4], random_suits_no_flush());
+
+        let pair1 = create_hand([2, 3, 10, 2, 4], random_suits_no_flush());
+        let pair2 = create_hand([5, 6, 7, 5, 2], random_suits_no_flush());
+        let pair3 = create_hand([5, 6, 2, 5, 1], random_suits_no_flush());
+
+        let straight1 = create_hand([3, 4, 5, 6, 7], random_suits_no_flush());
+        let straight2 = create_hand([1, 2, 3, 4, 5], random_suits_no_flush());
+
+        assert_eq!(highcard1.cmp(&highcard2), Ordering::Less);
+        assert_eq!(pair1.cmp(&pair2), Ordering::Less);
+        assert_eq!(pair2.cmp(&pair3), Ordering::Less);
+        assert_eq!(highcard1.cmp(&pair2), Ordering::Less);
+        assert_eq!(straight1.cmp(&straight2), Ordering::Less);
     }
 }

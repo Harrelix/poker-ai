@@ -90,7 +90,6 @@ impl PartialOrd for HandType {
 impl Ord for HandType {
     fn cmp(&self, other: &Self) -> Ordering {
         // this hand type is greater if it's ranking is smaller and vice versa
-        // TODO: break ties when ranking is equal
         self.get_ranking().cmp(&other.get_ranking()).reverse()
     }
 }

@@ -36,24 +36,21 @@ impl PartialOrd for Card {
     }
 }
 impl Ord for Card {
-    /// compare cards
-    /// the suit does not matter, eg. two of spade == two of clubs
-    /// aces are higher than two
+    /// compare cards.
+    /// the suit does not matter, eg. two of spade == two of clubs.
+    /// aces are highest.
     fn cmp(&self, other: &Self) -> Ordering {
-        if self.rank == 1 || self.rank > other.rank {
+        if self.rank == 1 {
             return Ordering::Greater;
         }
-        if self.rank < other.rank {
-            return Ordering::Less;
-        }
-        return Ordering::Equal;
+        self.rank.cmp(&other.rank)
     }
 }
 
-/// Wrapper for type [Card; 5], makes sure that hand is always sorted
+/// Wrapper for type [Card; 5], makes sure that hand is always sorted.
 #[derive(Clone, Copy, Eq)]
 pub struct Hand {
-    data: [Card; 5],
+    cards: [Card; 5],
 
     // hand_type is initially None.
     // is Some when `get_hand_type` is first called
@@ -67,24 +64,26 @@ impl Hand {
         // sort low to high
         sorted.sort();
         Hand {
-            data: sorted,
+            cards: sorted,
             hand_type: None,
         }
     }
     fn iter(&self) -> impl Iterator<Item = &Card> {
-        self.data.iter()
+        self.cards.iter()
     }
     fn into_iter(self) -> IntoIter<Card, 5> {
-        self.data.into_iter()
+        self.cards.into_iter()
     }
     fn get_ranks_array(self) -> [u8; 5] {
-        self.data
+        self.cards
             .iter()
             .map(|card| card.rank)
             .collect::<Vec<u8>>()
             .try_into()
             .unwrap()
     }
+    /// returns the hand's type.
+    /// O(1) if previously calculated.
     fn get_hand_type(self) -> HandType {
         // check if already calculated
         if let Some(hand_type) = self.hand_type {
@@ -97,12 +96,12 @@ impl Hand {
                 return hand_type;
             }
         }
-        panic!("Hand {:?} type is unknown", self.data)
+        panic!("Hand {:?} type is unknown", self.cards)
     }
     fn is_hand_type(self, hand_type: HandType) -> bool {
         hand_type.check_hand(self)
     }
-    /// returns all possible hand that can be made using current hole and community
+    /// returns all possible hand that can be made using current hole and community.
     pub fn get_all_hands(hole: [Card; 2], community: [Card; 5]) -> Vec<Hand> {
         // concatenate into a array with length 7
         let cards: [Card; 7] = concat_arrays!(hole, community);
@@ -118,13 +117,12 @@ impl Index<usize> for Hand {
     type Output = Card;
 
     fn index(&self, index: usize) -> &Self::Output {
-        &self.data[index]
+        &self.cards[index]
     }
 }
 impl PartialEq for Hand {
-    /// for consistency with Ord, two hands are equal when their ranking is equal
     fn eq(&self, other: &Self) -> bool {
-        self.get_hand_type() == other.get_hand_type()
+        self.cmp(other).is_eq()
     }
 }
 impl PartialOrd for Hand {
@@ -134,7 +132,19 @@ impl PartialOrd for Hand {
 }
 impl Ord for Hand {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.get_hand_type().cmp(&other.get_hand_type())
+        let hand_type_cmp = self.get_hand_type().cmp(&other.get_hand_type());
+        if hand_type_cmp.is_ne() {
+            return hand_type_cmp; // return if there're no ties
+        }
+        // iterate the cards from high to low
+        for index in (0..5).rev() {
+            let card_cmp = self.cards[index].cmp(&other.cards[index]);
+            if card_cmp.is_ne() {
+                return card_cmp; // return if there're no ties
+            }
+        }
+        // all cards are equal
+        Ordering::Equal
     }
 }
 

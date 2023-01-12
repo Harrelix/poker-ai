@@ -49,6 +49,9 @@ impl Ord for Card {
     /// aces are highest.
     fn cmp(&self, other: &Self) -> Ordering {
         if self.rank == 1 {
+            if other.rank == 1 {
+                return Ordering::Equal;
+            }
             return Ordering::Greater;
         }
         if other.rank == 1 {
@@ -100,17 +103,8 @@ impl Hand {
         if let Some(hand_type) = self.hand_type {
             return hand_type;
         }
-        // else loop through all hand types in order
-        // to find the highest type this hand is
-        for hand_type in HandType::ALL_HAND_TYPES {
-            if hand_type.check_hand(self) {
-                return hand_type;
-            }
-        }
-        panic!("Hand {:?} type is unknown", self.cards)
-    }
-    fn is_hand_type(self, hand_type: HandType) -> bool {
-        hand_type.check_hand(self)
+
+        HandType::get_hand(self)
     }
     /// returns all possible hand that can be made using current hole and community.
     pub fn get_all_hands(hole: [Card; 2], community: [Card; 5]) -> Vec<Hand> {
@@ -143,19 +137,85 @@ impl PartialOrd for Hand {
 }
 impl Ord for Hand {
     fn cmp(&self, other: &Self) -> Ordering {
-        let hand_type_cmp = self.get_hand_type().cmp(&other.get_hand_type());
+        let self_hand_type = self.get_hand_type();
+        let other_hand_type = other.get_hand_type();
+        let hand_type_cmp = self_hand_type.cmp(&other_hand_type);
         if hand_type_cmp.is_ne() {
             return hand_type_cmp; // return if there're no ties
         }
-        // iterate the cards from high to low
-        for index in (0..5).rev() {
-            let card_cmp = self.cards[index].cmp(&other.cards[index]);
-            if card_cmp.is_ne() {
-                return card_cmp; // return if there're no ties
+        // breaking tie, self_hand_type should be the same as other_hand_type
+        /// helper function to compare the ranks of hands. takes in vec because
+        /// sometime we need to compare sections of hands.
+        /// `h1` and `h2` has to be the same size and sorted low to high
+        fn compare_ranks(h1: Vec<Card>, h2: Vec<Card>) -> Ordering {
+            for (c1, c2) in h1.iter().zip(h2).rev() {
+                let compare_result = c1.cmp(&c2);
+                if compare_result.is_ne() {
+                    return compare_result;
+                }
             }
+            // all elements are equal
+            Ordering::Equal
         }
-        // all cards are equal
-        Ordering::Equal
+        // closure that compare hands if there're no specific tie breaking rules
+        let default_tie_break = || -> Ordering {
+            return compare_ranks(self.cards.to_vec(), other.cards.to_vec());
+        };
+        let straight_tie_break = || -> Ordering {
+            if let (
+                HandType::Straight(self_straight_rank),
+                HandType::Straight(other_straight_rank),
+            ) = (self_hand_type, other_hand_type)
+            {
+                if self_straight_rank == 1 {
+                    if other_straight_rank == 1 {
+                        return Ordering::Equal;
+                    }
+                    return Ordering::Greater;
+                }
+                if other_straight_rank == 1 {
+                    return Ordering::Less;
+                }
+                return self_straight_rank.cmp(&other_straight_rank);
+            }
+            panic!(
+                "Hands are not both straights. \nHand 1: {:?}.\nHand 2:{:?}",
+                self.cards, other.cards
+            );
+        };
+        let one_pair_tie_break = || -> Ordering {
+            if let (HandType::OnePair(self_pair_rank), HandType::OnePair(other_pair_rank)) =
+                (self_hand_type, other_hand_type)
+            {
+                let compare_result = self_pair_rank.cmp(&other_pair_rank);
+                if compare_result.is_ne() {
+                    return compare_result;
+                }
+                // the pair ranks are the same, check for higher card outside of the pair
+                return compare_ranks(
+                    self.cards
+                        .into_iter()
+                        .filter(|card| card.rank != self_pair_rank) // remove the pair
+                        .collect(),
+                    other
+                        .cards
+                        .into_iter()
+                        .filter(|card| card.rank != self_pair_rank) // remove the pair
+                        .collect(),
+                );
+            }
+            panic!(
+                "Hands are not both one pair. \nHand 1: {:?}.\nHand 2:{:?}",
+                self.cards, other.cards
+            );
+        };
+
+        match self_hand_type {
+            HandType::Flush => default_tie_break(),
+            HandType::Straight(_) => straight_tie_break(),
+            HandType::OnePair(_) => one_pair_tie_break(),
+            HandType::HighCard => default_tie_break(),
+        }
     }
 }
 
@@ -227,6 +287,6 @@ mod tests {
         assert_eq!(pair1.cmp(&pair2), Ordering::Less);
         assert_eq!(pair2.cmp(&pair3), Ordering::Less);
         assert_eq!(highcard1.cmp(&pair2), Ordering::Less);
-        assert_eq!(straight1.cmp(&straight2), Ordering::Less);
+        assert_eq!(straight1.cmp(&straight2), Ordering::Greater);
     }
 }

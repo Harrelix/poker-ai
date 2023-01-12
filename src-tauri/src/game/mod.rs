@@ -281,7 +281,7 @@ impl Game {
                 "Winner: {}",
                 winning_players_indices
                     .iter()
-                    .map(|e| e.to_string())
+                    .map(|i| game.players[*i].name.clone())
                     .join(", ")
             );
             winning_players_indices
@@ -478,7 +478,6 @@ impl Game {
         fn fold(new_game: &mut Game) -> Result<(), String> {
             let current_player = &mut new_game.players[new_game.current_player_index];
             current_player.folded = true;
-            println!("{:?}", new_game.players);
 
             // check if only one person remaining
             let remaining_players_indices: Vec<usize> = new_game

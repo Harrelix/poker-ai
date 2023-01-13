@@ -183,6 +183,62 @@ impl Ord for Hand {
                 self.cards, other.cards
             );
         };
+        let three_of_a_kind_tie_break = || -> Ordering {
+            if let (HandType::ThreeOfAKind(self_rank), HandType::ThreeOfAKind(other_rank)) =
+                (self_hand_type, other_hand_type)
+            {
+                let compare_result = self_rank.cmp(&other_rank);
+                if compare_result.is_ne() {
+                    return compare_result;
+                }
+                // remove the three of a kind and compare ranks
+                return compare_ranks(
+                    self.cards
+                        .into_iter()
+                        .filter(|card| card.rank != self_rank)
+                        .collect(),
+                    other
+                        .cards
+                        .into_iter()
+                        .filter(|card| card.rank != other_rank)
+                        .collect(),
+                );
+            }
+            panic!(
+                "Hands are not both three of a kind. \nHand 1: {:?}.\nHand 2:{:?}",
+                self.cards, other.cards
+            );
+        };
+        let two_pair_tie_break = || -> Ordering {
+            if let (HandType::TwoPair(spr1, spr2), HandType::TwoPair(opr1, opr2)) =
+                (self_hand_type, other_hand_type)
+            {
+                let cmp_res_1 = spr1.cmp(&opr1);
+                if cmp_res_1.is_ne() {
+                    return cmp_res_1;
+                }
+                let cmp_res_2 = spr2.cmp(&opr2);
+                if cmp_res_2.is_ne() {
+                    return cmp_res_2;
+                }
+                // remove the two pair and compare ranks if both pair are the same
+                return compare_ranks(
+                    self.cards
+                        .into_iter()
+                        .filter(|card| card.rank != spr1 && card.rank != spr2)
+                        .collect(), // should have one card left
+                    other
+                        .cards
+                        .into_iter()
+                        .filter(|card| card.rank != opr1 && card.rank != opr2)
+                        .collect(), // should have one card left
+                );
+            }
+            panic!(
+                "Hands are not both two pair. \nHand 1: {:?}.\nHand 2:{:?}",
+                self.cards, other.cards
+            );
+        };
         let one_pair_tie_break = || -> Ordering {
             if let (HandType::OnePair(self_pair_rank), HandType::OnePair(other_pair_rank)) =
                 (self_hand_type, other_hand_type)
@@ -211,8 +267,14 @@ impl Ord for Hand {
         };
 
         match self_hand_type {
+            HandType::RoyalFlush => todo!(),
+            HandType::StraightFlush(_) => todo!(),
+            HandType::FourOfAKind(_) => todo!(),
+            HandType::FullHouse(_, _) => todo!(),
             HandType::Flush => default_tie_break(),
             HandType::Straight(_) => straight_tie_break(),
+            HandType::ThreeOfAKind(_) => three_of_a_kind_tie_break(),
+            HandType::TwoPair(_, _) => two_pair_tie_break(),
             HandType::OnePair(_) => one_pair_tie_break(),
             HandType::HighCard => default_tie_break(),
         }

@@ -6,9 +6,15 @@ type Ranking = u8;
 
 #[derive(Clone, Copy, Eq)]
 pub enum HandType {
+    RoyalFlush,
+    StraightFlush(u8), // u8 is the rank of highest card in the straight
+    FourOfAKind(u8),   // u8 is the four of a kind rank
+    FullHouse(u8, u8), // first u8 is the trio's rank, second is the pair's
     Flush,
-    Straight(u8), // u8 is the rank of highest card in the straight
-    OnePair(u8),  // u8 is the rank of highest pair (usually the only one)
+    Straight(u8),     // u8 is the rank of highest card in the straight
+    ThreeOfAKind(u8), // u8 is the rank of the three of a kind
+    TwoPair(u8, u8),  // u8 are the two ranks of the pair, the first u8 is higher
+    OnePair(u8),      // u8 is the rank of highest pair (usually the only one)
     HighCard,
 }
 impl HandType {
@@ -18,6 +24,7 @@ impl HandType {
         if hand.into_iter().all(|card| card.suit == hand[0].suit) {
             return HandType::Flush;
         }
+
         // ====straight====
         // if hand has a 1, there're two cases
         if hand[4].rank == 1 {
@@ -35,12 +42,29 @@ impl HandType {
             return HandType::Straight(hand[4].rank); // hand is straight
         }
 
-        // ====one pair====
-        // since hand is sorted, only compare to the neighboring card
-        for i in (1..5).rev() {
-            if hand[i].rank == hand[i - 1].rank {
-                return HandType::OnePair(hand[i].rank);
+        // ====three of a kind====
+        for i in (2..5).rev() {
+            // sorted so only need to check the two ends
+            if hand[i].rank == hand[i - 2].rank {
+                return HandType::ThreeOfAKind(hand[i].rank);
             }
+        }
+
+        // ====two pair & one pair====
+        // guaranteed no 3 same rank in a row so this is fine
+        let mut prev_pair = None;
+        for i in (1..5).rev() {
+            // sorted so only need to check neighboring cards
+            if hand[i].rank == hand[i - 1].rank {
+                match prev_pair {
+                    Some(r) => return HandType::TwoPair(r, hand[i].rank),
+                    None => prev_pair = Some(hand[i].rank),
+                }
+            }
+        }
+        // check if found one pair
+        if let Some(r) = prev_pair {
+            return HandType::OnePair(r);
         }
 
         // ====high card====
@@ -49,8 +73,14 @@ impl HandType {
     }
     pub fn get_ranking(self) -> Ranking {
         match self {
+            HandType::RoyalFlush => 1,
+            HandType::StraightFlush(_) => 2,
+            HandType::FourOfAKind(_) => 3,
+            HandType::FullHouse(_, _) => 4,
             HandType::Flush => 5,
             HandType::Straight(_) => 6,
+            HandType::ThreeOfAKind(_) => 7,
+            HandType::TwoPair(_, _) => 8,
             HandType::OnePair(_) => 9,
             HandType::HighCard => 10,
         }

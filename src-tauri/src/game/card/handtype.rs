@@ -4,7 +4,7 @@ use super::Hand;
 
 type Ranking = u8;
 
-#[derive(Clone, Copy, Eq)]
+#[derive(Clone, Copy, Eq, Debug)]
 pub enum HandType {
     RoyalFlush,
     StraightFlush(u8), // u8 is the rank of highest card in the straight
@@ -19,39 +19,77 @@ pub enum HandType {
 }
 impl HandType {
     pub fn get_hand(hand: Hand) -> HandType {
-        // ====flush====
         // cards' suits are the same with the first one
-        if hand.into_iter().all(|card| card.suit == hand[0].suit) {
+        let is_flush = hand.into_iter().all(|card| card.suit == hand[0].suit);
+
+        // ====royal flush====
+        if hand.get_ranks_array() == [10, 11, 12, 13, 1] && is_flush {
+            return HandType::RoyalFlush;
+        }
+        // ====straight flush====
+        let straight_rank = if hand[4].rank == 1 {
+            // if hand has a 1, there're two cases
+            // check for 12345 and TJQKA straight
+            let a = hand.get_ranks_array();
+            if a == [2, 3, 4, 5, 1] {
+                Some(5)
+            } else if a == [10, 11, 12, 13, 1] {
+                Some(1)
+            } else {
+                None
+            }
+        } else {
+            // check if the ranks are consecutive
+            if (1..5).all(|i| hand[i].rank == hand[i - 1].rank + 1) {
+                Some(hand[4].rank) // hand is straight
+            } else {
+                None
+            }
+        };
+        if let Some(r) = straight_rank {
+            if is_flush {
+                return HandType::StraightFlush(r);
+            }
+        }
+        // ====four of a kind====
+        let x_of_a_kind = |x: usize| -> Option<u8> {
+            for i in ((x - 1)..5).rev() {
+                // sorted so only need to check the two ends
+                if hand[i].rank == hand[i - (x - 1)].rank {
+                    return Some(hand[i].rank);
+                }
+            }
+            None
+        };
+        if let Some(r) = x_of_a_kind(4) {
+            return HandType::FourOfAKind(r);
+        }
+
+        // ====full house====
+        // two possible configuration: [A, A, A, B, B] or [B, B, A, A, A]
+        if hand[0].rank == hand[2].rank && hand[3].rank == hand[4].rank {
+            return HandType::FullHouse(hand[0].rank, hand[3].rank);
+        }
+        if hand[0].rank == hand[1].rank && hand[2].rank == hand[4].rank {
+            return HandType::FullHouse(hand[2].rank, hand[0].rank);
+        }
+
+        // ====flush====
+        if is_flush {
             return HandType::Flush;
         }
 
         // ====straight====
-        // if hand has a 1, there're two cases
-        if hand[4].rank == 1 {
-            // check for 12345 and TJQKA straight
-            let a = hand.get_ranks_array();
-            if a == [2, 3, 4, 5, 1] {
-                return HandType::Straight(5);
-            }
-            if a == [10, 11, 12, 13, 1] {
-                return HandType::Straight(1);
-            }
-        }
-        // check if the ranks are consecutive
-        if (1..5).all(|i| hand[i].rank == hand[i - 1].rank + 1) {
-            return HandType::Straight(hand[4].rank); // hand is straight
+        if let Some(r) = straight_rank {
+            return HandType::Straight(r);
         }
 
         // ====three of a kind====
-        for i in (2..5).rev() {
-            // sorted so only need to check the two ends
-            if hand[i].rank == hand[i - 2].rank {
-                return HandType::ThreeOfAKind(hand[i].rank);
-            }
+        if let Some(r) = x_of_a_kind(3) {
+            return HandType::ThreeOfAKind(r);
         }
 
-        // ====two pair & one pair====
-        // guaranteed no 3 same rank in a row so this is fine
+        // ====two pair====
         let mut prev_pair = None;
         for i in (1..5).rev() {
             // sorted so only need to check neighboring cards
@@ -62,6 +100,7 @@ impl HandType {
                 }
             }
         }
+        // ====one pair====
         // check if found one pair
         if let Some(r) = prev_pair {
             return HandType::OnePair(r);

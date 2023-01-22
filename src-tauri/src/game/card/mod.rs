@@ -1,4 +1,4 @@
-use std::{array::IntoIter, cmp::Ordering, collections::LinkedList, ops::Index};
+use std::{array::IntoIter, cmp::Ordering, collections::LinkedList, default, ops::Index};
 
 mod handtype;
 
@@ -144,8 +144,9 @@ impl Ord for Hand {
             return hand_type_cmp; // return if there're no ties
         }
         // breaking tie, self_hand_type should be the same as other_hand_type
+
         /// helper function to compare the ranks of hands. takes in vec because
-        /// sometime we need to compare sections of hands.
+        /// sometimes we need to compare sections of hands.
         /// `h1` and `h2` has to be the same size and sorted low to high
         fn compare_ranks(h1: Vec<Card>, h2: Vec<Card>) -> Ordering {
             for (c1, c2) in h1.iter().zip(h2).rev() {
@@ -161,122 +162,93 @@ impl Ord for Hand {
         let default_tie_break = || -> Ordering {
             return compare_ranks(self.cards.to_vec(), other.cards.to_vec());
         };
-        let straight_tie_break = || -> Ordering {
-            if let (
-                HandType::Straight(self_straight_rank),
-                HandType::Straight(other_straight_rank),
-            ) = (self_hand_type, other_hand_type)
-            {
-                if self_straight_rank == 1 {
-                    if other_straight_rank == 1 {
-                        return Ordering::Equal;
-                    }
-                    return Ordering::Greater;
-                }
+
+        fn straight_tie_break(self_straight_rank: u8, other_straight_rank: u8) -> Ordering {
+            if self_straight_rank == 1 {
                 if other_straight_rank == 1 {
-                    return Ordering::Less;
+                    return Ordering::Equal;
                 }
-                return self_straight_rank.cmp(&other_straight_rank);
+                return Ordering::Greater;
             }
-            panic!(
-                "Hands are not both straights. \nHand 1: {:?}.\nHand 2:{:?}",
-                self.cards, other.cards
+            if other_straight_rank == 1 {
+                return Ordering::Less;
+            }
+            return self_straight_rank.cmp(&other_straight_rank);
+        }
+        let x_of_a_kind_tie_break = |self_rank: u8, other_rank: u8| -> Ordering {
+            let compare_result = self_rank.cmp(&other_rank);
+            if compare_result.is_ne() {
+                return compare_result;
+            }
+            return compare_ranks(
+                self.cards
+                    .into_iter()
+                    .filter(|card| card.rank != self_rank)
+                    .collect(),
+                other
+                    .cards
+                    .into_iter()
+                    .filter(|card| card.rank != other_rank)
+                    .collect(),
             );
         };
-        let three_of_a_kind_tie_break = || -> Ordering {
-            if let (HandType::ThreeOfAKind(self_rank), HandType::ThreeOfAKind(other_rank)) =
-                (self_hand_type, other_hand_type)
-            {
-                let compare_result = self_rank.cmp(&other_rank);
-                if compare_result.is_ne() {
-                    return compare_result;
-                }
-                // remove the three of a kind and compare ranks
-                return compare_ranks(
-                    self.cards
-                        .into_iter()
-                        .filter(|card| card.rank != self_rank)
-                        .collect(),
-                    other
-                        .cards
-                        .into_iter()
-                        .filter(|card| card.rank != other_rank)
-                        .collect(),
-                );
+        fn full_house_tie_break(str: u8, spr: u8, otr: u8, opr: u8) -> Ordering {
+            let compare_result = str.cmp(&otr);
+            if compare_result.is_ne() {
+                return compare_result;
             }
-            panic!(
-                "Hands are not both three of a kind. \nHand 1: {:?}.\nHand 2:{:?}",
-                self.cards, other.cards
-            );
-        };
-        let two_pair_tie_break = || -> Ordering {
-            if let (HandType::TwoPair(spr1, spr2), HandType::TwoPair(opr1, opr2)) =
-                (self_hand_type, other_hand_type)
-            {
-                let cmp_res_1 = spr1.cmp(&opr1);
-                if cmp_res_1.is_ne() {
-                    return cmp_res_1;
-                }
-                let cmp_res_2 = spr2.cmp(&opr2);
-                if cmp_res_2.is_ne() {
-                    return cmp_res_2;
-                }
-                // remove the two pair and compare ranks if both pair are the same
-                return compare_ranks(
-                    self.cards
-                        .into_iter()
-                        .filter(|card| card.rank != spr1 && card.rank != spr2)
-                        .collect(), // should have one card left
-                    other
-                        .cards
-                        .into_iter()
-                        .filter(|card| card.rank != opr1 && card.rank != opr2)
-                        .collect(), // should have one card left
-                );
+            spr.cmp(&opr)
+        }
+        let two_pair_tie_break = |spr1: u8, spr2: u8, opr1: u8, opr2: u8| -> Ordering {
+            let cmp_res_1 = spr1.cmp(&opr1);
+            if cmp_res_1.is_ne() {
+                return cmp_res_1;
             }
-            panic!(
-                "Hands are not both two pair. \nHand 1: {:?}.\nHand 2:{:?}",
-                self.cards, other.cards
-            );
-        };
-        let one_pair_tie_break = || -> Ordering {
-            if let (HandType::OnePair(self_pair_rank), HandType::OnePair(other_pair_rank)) =
-                (self_hand_type, other_hand_type)
-            {
-                let compare_result = self_pair_rank.cmp(&other_pair_rank);
-                if compare_result.is_ne() {
-                    return compare_result;
-                }
-                // the pair ranks are the same, check for higher card outside of the pair
-                return compare_ranks(
-                    self.cards
-                        .into_iter()
-                        .filter(|card| card.rank != self_pair_rank) // remove the pair
-                        .collect(),
-                    other
-                        .cards
-                        .into_iter()
-                        .filter(|card| card.rank != self_pair_rank) // remove the pair
-                        .collect(),
-                );
+            let cmp_res_2 = spr2.cmp(&opr2);
+            if cmp_res_2.is_ne() {
+                return cmp_res_2;
             }
-            panic!(
-                "Hands are not both one pair. \nHand 1: {:?}.\nHand 2:{:?}",
-                self.cards, other.cards
+            // remove the two pair and compare ranks if both pair are the same
+            return compare_ranks(
+                self.cards
+                    .into_iter()
+                    .filter(|card| card.rank != spr1 && card.rank != spr2)
+                    .collect(), // should have one card left
+                other
+                    .cards
+                    .into_iter()
+                    .filter(|card| card.rank != opr1 && card.rank != opr2)
+                    .collect(), // should have one card left
             );
         };
 
-        match self_hand_type {
-            HandType::RoyalFlush => todo!(),
-            HandType::StraightFlush(_) => todo!(),
-            HandType::FourOfAKind(_) => todo!(),
-            HandType::FullHouse(_, _) => todo!(),
-            HandType::Flush => default_tie_break(),
-            HandType::Straight(_) => straight_tie_break(),
-            HandType::ThreeOfAKind(_) => three_of_a_kind_tie_break(),
-            HandType::TwoPair(_, _) => two_pair_tie_break(),
-            HandType::OnePair(_) => one_pair_tie_break(),
-            HandType::HighCard => default_tie_break(),
+        match (self_hand_type, other_hand_type) {
+            (HandType::RoyalFlush, HandType::RoyalFlush) => Ordering::Equal, // royal flushes are the same
+            (HandType::StraightFlush(ssr), HandType::StraightFlush(osr)) => {
+                straight_tie_break(ssr, osr)
+            }
+            (HandType::FourOfAKind(sfoakr), HandType::FourOfAKind(ofoakr)) => {
+                x_of_a_kind_tie_break(sfoakr, ofoakr)
+            }
+            (HandType::FullHouse(str, spr), HandType::FullHouse(otr, opr)) => {
+                full_house_tie_break(str, spr, otr, opr)
+            }
+            (HandType::Flush, HandType::Flush) => default_tie_break(),
+            (HandType::Straight(ssr), HandType::Straight(osr)) => straight_tie_break(ssr, osr),
+            (HandType::ThreeOfAKind(stoakr), HandType::ThreeOfAKind(otoakr)) => {
+                x_of_a_kind_tie_break(stoakr, otoakr)
+            }
+            (HandType::TwoPair(spr1, spr2), HandType::TwoPair(opr1, opr2)) => {
+                two_pair_tie_break(spr1, spr2, opr1, opr2)
+            }
+            (HandType::OnePair(spr), HandType::OnePair(opr)) => x_of_a_kind_tie_break(spr, opr),
+            (HandType::HighCard, HandType::HighCard) => default_tie_break(),
+            _ => panic!(
+                "Hands are not the same type so can't tie break. 
+                \nSelf hand type: {:?}.
+                \nOther hand type:{:?}",
+                self_hand_type, other_hand_type
+            ),
         }
     }
 }
@@ -342,13 +314,26 @@ mod tests {
         let pair2 = create_hand([5, 6, 7, 5, 2], random_suits_no_flush());
         let pair3 = create_hand([5, 6, 2, 5, 1], random_suits_no_flush());
 
+        let toak1 = create_hand([2, 2, 2, 1, 4], random_suits_no_flush());
+
         let straight1 = create_hand([3, 4, 5, 6, 7], random_suits_no_flush());
         let straight2 = create_hand([1, 2, 3, 4, 5], random_suits_no_flush());
+
+        let flush1 = create_hand([7, 2, 3, 4, 6], [Suit::Heart; 5]);
+        let flush2 = create_hand([3, 4, 5, 7, 8], [Suit::Club; 5]);
+
+        let full_house = create_hand([9, 9, 9, 7, 7], random_suits_no_flush());
+        let foak = create_hand([3, 3, 3, 3, 9], random_suits_no_flush());
+        let royal_flush = create_hand([10, 11, 12, 13, 1], [Suit::Heart; 5]);
 
         assert_eq!(highcard1.cmp(&highcard2), Ordering::Less);
         assert_eq!(pair1.cmp(&pair2), Ordering::Less);
         assert_eq!(pair2.cmp(&pair3), Ordering::Less);
         assert_eq!(highcard1.cmp(&pair2), Ordering::Less);
         assert_eq!(straight1.cmp(&straight2), Ordering::Greater);
+        assert_eq!(flush1.cmp(&flush2), Ordering::Less);
+        assert_eq!(toak1.cmp(&pair3), Ordering::Greater);
+        assert_eq!(royal_flush.cmp(&foak), Ordering::Greater);
+        assert_eq!(foak.cmp(&full_house), Ordering::Greater);
     }
 }

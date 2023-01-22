@@ -1,21 +1,23 @@
-use std::cmp::Ordering;
+use std::{cmp::Ordering, fmt::Display};
 
+use super::Card;
 use super::Hand;
+use super::Rank;
 
 type Ranking = u8;
 
 #[derive(Clone, Copy, Eq, Debug)]
 pub enum HandType {
     RoyalFlush,
-    StraightFlush(u8), // u8 is the rank of highest card in the straight
-    FourOfAKind(u8),   // u8 is the four of a kind rank
-    FullHouse(u8, u8), // first u8 is the trio's rank, second is the pair's
+    StraightFlush(Rank),   // Rank is the rank of highest card in the straight
+    FourOfAKind(Rank),     // Rank is the four of a kind rank
+    FullHouse(Rank, Rank), // first Rank is the trio's rank, second is the pair's
     Flush,
-    Straight(u8),     // u8 is the rank of highest card in the straight
-    ThreeOfAKind(u8), // u8 is the rank of the three of a kind
-    TwoPair(u8, u8),  // u8 are the two ranks of the pair, the first u8 is higher
-    OnePair(u8),      // u8 is the rank of highest pair (usually the only one)
-    HighCard,
+    Straight(Rank),      // Rank is the rank of highest card in the straight
+    ThreeOfAKind(Rank),  // Rank is the rank of the three of a kind
+    TwoPair(Rank, Rank), // Rank are the two ranks of the pair, the first Rank is higher
+    OnePair(Rank),       // Rank is the rank of highest pair (usually the only one)
+    HighCard(Rank),      // Rank is the highest card
 }
 impl HandType {
     pub fn get_hand(hand: Hand) -> HandType {
@@ -52,7 +54,7 @@ impl HandType {
             }
         }
         // ====four of a kind====
-        let x_of_a_kind = |x: usize| -> Option<u8> {
+        let x_of_a_kind = |x: usize| -> Option<Rank> {
             for i in ((x - 1)..5).rev() {
                 // sorted so only need to check the two ends
                 if hand[i].rank == hand[i - (x - 1)].rank {
@@ -108,7 +110,7 @@ impl HandType {
 
         // ====high card====
         // reached the end, meaning it's not any other type
-        HandType::HighCard
+        HandType::HighCard(hand[4].rank)
     }
     pub fn get_ranking(self) -> Ranking {
         match self {
@@ -121,7 +123,7 @@ impl HandType {
             HandType::ThreeOfAKind(_) => 7,
             HandType::TwoPair(_, _) => 8,
             HandType::OnePair(_) => 9,
-            HandType::HighCard => 10,
+            HandType::HighCard(_) => 10,
         }
     }
 }
@@ -139,5 +141,38 @@ impl Ord for HandType {
     fn cmp(&self, other: &Self) -> Ordering {
         // this hand type is greater if it's ranking is smaller and vice versa
         self.get_ranking().cmp(&other.get_ranking()).reverse()
+    }
+}
+impl Display for HandType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match *self {
+            HandType::RoyalFlush => write!(f, "Royal Flush"),
+            HandType::StraightFlush(r) => {
+                write!(f, "Straight Flush (rank {})", Card::display_rank(r))
+            }
+            HandType::FourOfAKind(r) => {
+                write!(f, "Four Of A Kind (rank {})", Card::display_rank(r))
+            }
+            HandType::FullHouse(tr, pr) => write!(
+                f,
+                "Straight Flush (trio rank {}; pair rank {})",
+                Card::display_rank(tr),
+                Card::display_rank(pr)
+            ),
+
+            HandType::Flush => write!(f, "Flush"),
+            HandType::Straight(r) => write!(f, "Straight (rank {})", Card::display_rank(r)),
+            HandType::ThreeOfAKind(r) => {
+                write!(f, "Three Of A Kind (rank {})", Card::display_rank(r))
+            }
+            HandType::TwoPair(p1r, p2r) => write!(
+                f,
+                "Two pair (pair 1 rank {}, pair 2 rank {})",
+                Card::display_rank(p1r),
+                Card::display_rank(p2r)
+            ),
+            HandType::OnePair(r) => write!(f, "One pair (rank {})", Card::display_rank(r)),
+            HandType::HighCard(r) => write!(f, "High card (rank {})", Card::display_rank(r)),
+        }
     }
 }

@@ -1,4 +1,4 @@
-use std::{array::IntoIter, cmp::Ordering, collections::LinkedList, default, ops::Index};
+use std::{array::IntoIter, cmp::Ordering, collections::LinkedList, fmt::Display, ops::Index};
 
 mod handtype;
 
@@ -19,17 +19,39 @@ enum Suit {
 impl Suit {
     const ALL_SUITS: [Suit; 4] = [Suit::Spade, Suit::Club, Suit::Diamond, Suit::Heart];
 }
+impl Display for Suit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Suit::Spade => write!(f, "Spades"),
+            Suit::Club => write!(f, "Clubs"),
+            Suit::Diamond => write!(f, "Diamonds"),
+            Suit::Heart => write!(f, "Hearts"),
+        }
+    }
+}
+
+type Rank = u8;
+
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, Eq)]
 pub struct Card {
-    rank: u8, // J, Q, K, A are 11, 12, 13, 1 respectively
+    rank: Rank, // J, Q, K, A are 11, 12, 13, 1 respectively
     suit: Suit,
 }
 impl Card {
-    fn new(rank: u8, suit: Suit) -> Card {
+    fn new(rank: Rank, suit: Suit) -> Card {
         if rank == 0 || rank > 13 {
             panic!("Rank {} not valid. Should be between 1 and 13", rank);
         }
         Card { rank, suit }
+    }
+    fn display_rank(rank: Rank) -> String {
+        match rank {
+            1 => "Ace".into(),
+            11 => "Jack".into(),
+            12 => "Queen".into(),
+            13 => "King".into(),
+            _ => rank.to_string(),
+        }
     }
 }
 impl PartialEq for Card {
@@ -60,6 +82,11 @@ impl Ord for Card {
         self.rank.cmp(&other.rank)
     }
 }
+impl Display for Card {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} of {}", Card::display_rank(self.rank), self.suit)
+    }
+}
 
 /// Wrapper for type [Card; 5], makes sure that hand is always sorted.
 #[derive(Clone, Copy, Eq)]
@@ -88,17 +115,17 @@ impl Hand {
     fn into_iter(self) -> IntoIter<Card, 5> {
         self.cards.into_iter()
     }
-    fn get_ranks_array(self) -> [u8; 5] {
+    fn get_ranks_array(self) -> [Rank; 5] {
         self.cards
             .iter()
             .map(|card| card.rank)
-            .collect::<Vec<u8>>()
+            .collect::<Vec<Rank>>()
             .try_into()
             .unwrap()
     }
     /// returns the hand's type.
     /// O(1) if previously calculated.
-    fn get_hand_type(self) -> HandType {
+    pub fn get_hand_type(self) -> HandType {
         // check if already calculated
         if let Some(hand_type) = self.hand_type {
             return hand_type;
@@ -149,6 +176,7 @@ impl Ord for Hand {
         /// sometimes we need to compare sections of hands.
         /// `h1` and `h2` has to be the same size and sorted low to high
         fn compare_ranks(h1: Vec<Card>, h2: Vec<Card>) -> Ordering {
+            // going backwards from highest to lowest card of both hands
             for (c1, c2) in h1.iter().zip(h2).rev() {
                 let compare_result = c1.cmp(&c2);
                 if compare_result.is_ne() {
@@ -163,7 +191,7 @@ impl Ord for Hand {
             return compare_ranks(self.cards.to_vec(), other.cards.to_vec());
         };
 
-        fn straight_tie_break(self_straight_rank: u8, other_straight_rank: u8) -> Ordering {
+        fn straight_tie_break(self_straight_rank: Rank, other_straight_rank: Rank) -> Ordering {
             if self_straight_rank == 1 {
                 if other_straight_rank == 1 {
                     return Ordering::Equal;
@@ -175,7 +203,7 @@ impl Ord for Hand {
             }
             return self_straight_rank.cmp(&other_straight_rank);
         }
-        let x_of_a_kind_tie_break = |self_rank: u8, other_rank: u8| -> Ordering {
+        let x_of_a_kind_tie_break = |self_rank: Rank, other_rank: Rank| -> Ordering {
             let compare_result = self_rank.cmp(&other_rank);
             if compare_result.is_ne() {
                 return compare_result;
@@ -192,14 +220,14 @@ impl Ord for Hand {
                     .collect(),
             );
         };
-        fn full_house_tie_break(str: u8, spr: u8, otr: u8, opr: u8) -> Ordering {
+        fn full_house_tie_break(str: Rank, spr: Rank, otr: Rank, opr: Rank) -> Ordering {
             let compare_result = str.cmp(&otr);
             if compare_result.is_ne() {
                 return compare_result;
             }
             spr.cmp(&opr)
         }
-        let two_pair_tie_break = |spr1: u8, spr2: u8, opr1: u8, opr2: u8| -> Ordering {
+        let two_pair_tie_break = |spr1: Rank, spr2: Rank, opr1: Rank, opr2: Rank| -> Ordering {
             let cmp_res_1 = spr1.cmp(&opr1);
             if cmp_res_1.is_ne() {
                 return cmp_res_1;
@@ -242,7 +270,7 @@ impl Ord for Hand {
                 two_pair_tie_break(spr1, spr2, opr1, opr2)
             }
             (HandType::OnePair(spr), HandType::OnePair(opr)) => x_of_a_kind_tie_break(spr, opr),
-            (HandType::HighCard, HandType::HighCard) => default_tie_break(),
+            (HandType::HighCard(_), HandType::HighCard(_)) => default_tie_break(),
             _ => panic!(
                 "Hands are not the same type so can't tie break. 
                 \nSelf hand type: {:?}.
@@ -281,7 +309,7 @@ mod tests {
     use rand;
     use rand::seq::SliceRandom;
 
-    fn create_hand(ranks: [u8; 5], suits: [Suit; 5]) -> Hand {
+    fn create_hand(ranks: [Rank; 5], suits: [Suit; 5]) -> Hand {
         Hand::new(
             ranks
                 .iter()

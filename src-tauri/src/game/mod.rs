@@ -239,17 +239,17 @@ impl Game {
             }
         };
 
-        // return the winning player indices after comparing hands
+        /// return the winning player indices after comparing hands
         fn showdown(game: &Game) -> Vec<usize> {
-            // showdown
-            // convert to array, double check to see if community is full
+            // convert community to array
+            // also double check to see if community is full
             let community_array: [Card; 5] = game
                 .community
                 .clone()
                 .try_into()
                 .unwrap_or_else(|v: Vec<Card>| panic!("Community not full ({}/5)", v.len()));
             // find best hand of all players
-            let winning_hands: Vec<Hand> = game
+            let best_hands: Vec<Hand> = game
                 .players
                 .iter()
                 .map(|player| {
@@ -260,23 +260,19 @@ impl Game {
                 })
                 .collect();
             // get all the winners
-            let first_hand = winning_hands[0];
-            let winning_players_indices = winning_hands
-                .into_iter()
-                .enumerate()
-                .fold(
-                    (first_hand, Vec::new()),
-                    |(max_hand, mut indices), (index, hand)| {
-                        if hand > max_hand {
-                            return (hand, vec![index]);
-                        }
-                        if hand == max_hand {
-                            indices.push(index);
-                        }
-                        return (max_hand, indices);
-                    },
-                )
-                .1;
+            let first_hand = best_hands[0];
+            let (winning_hand, winning_players_indices) = best_hands.into_iter().enumerate().fold(
+                (first_hand, Vec::new()),
+                |(max_hand, mut indices), (index, hand)| {
+                    if hand > max_hand {
+                        return (hand, vec![index]);
+                    }
+                    if hand == max_hand {
+                        indices.push(index);
+                    }
+                    return (max_hand, indices);
+                },
+            );
             println!(
                 "Winner: {}",
                 winning_players_indices
@@ -284,6 +280,7 @@ impl Game {
                     .map(|i| game.players[*i].name.clone())
                     .join(", ")
             );
+            println!("Hand type: {}", winning_hand.get_hand_type());
             winning_players_indices
         }
 

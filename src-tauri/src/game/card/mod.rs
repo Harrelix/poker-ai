@@ -109,9 +109,6 @@ impl Hand {
             hand_type: None,
         }
     }
-    fn iter(&self) -> impl Iterator<Item = &Card> {
-        self.cards.iter()
-    }
     fn into_iter(self) -> IntoIter<Card, 5> {
         self.cards.into_iter()
     }

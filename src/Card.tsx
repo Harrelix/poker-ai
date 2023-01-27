@@ -2,7 +2,7 @@ import * as React from 'react';
 
 export interface ICardProps {
   rank: number;
-  suit: String;
+  suit: string;
 }
 
 export const NULL_CARD: ICardProps = { rank: -1, suit: "" };
